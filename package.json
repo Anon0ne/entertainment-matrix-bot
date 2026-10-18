@@ -1,0 +1,22 @@
+{
+  "name": "entertainment-matrix-bot",
+  "version": "1.0.0",
+  "description": "Matrix entertainment bot for Plex, Sonarr, and Radarr",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test",
+    "check": "node --check src/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.8",
+    "matrix-bot-sdk": "^0.8.0"
+  }
+}
