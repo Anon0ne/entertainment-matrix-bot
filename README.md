@@ -1,12 +1,12 @@
 # Entertainment Matrix Bot
 
-A Node.js bot using `matrix-bot-sdk` to announce new Plex additions and request movies through Radarr and series through Sonarr.
+A Node.js bot using Element's `@vector-im/matrix-bot-sdk` to announce new Plex additions and request movies through Radarr and series through Sonarr. End-to-end encryption support is optional.
 
 ## Setup
 
-1. Install Node.js 22 or newer (Node 24 recommended), then run `npm ci`.
+1. Install Node.js 24 or newer, then run `npm ci`.
 2. Copy `.env.example` to `.env` and fill in the settings. Keep `.env` private.
-3. Create a dedicated Matrix bot account and obtain its access token. Invite it to an **unencrypted** room. Set `MATRIX_ROOM_IDS` to actual room IDs (`!…:server`), not aliases. Add the full Matrix IDs of permitted requesters to `MATRIX_ALLOWED_USERS`. Comma separates multiple entries.
+3. Create a dedicated Matrix bot account and obtain its access token. Invite it to each configured room. Set `MATRIX_ROOM_IDS` to actual room IDs (`!…:server`), not aliases. Add the full Matrix IDs of permitted requesters to `MATRIX_ALLOWED_USERS`. Comma separates multiple entries. To use encrypted rooms, set `MATRIX_ENCRYPTION_ENABLED=true` before starting the bot; the default is `false`.
 4. Supply Plex's server URL and token. Supply each media manager's base URL and API key from Settings → General, root folder path, and quality profile ID. Root paths are paths **inside Sonarr/Radarr**, not inside this bot. Profile IDs can be read from `GET /api/v3/qualityprofile` with the `X-Api-Key` header; root folders from `GET /api/v3/rootfolder`.
 5. Start with `npm start`, or `docker compose up -d --build`.
 
@@ -20,6 +20,7 @@ On Windows PowerShell, create the private configuration with `Copy-Item .env.exa
 | `MATRIX_ACCESS_TOKEN` | Dedicated bot account access token. |
 | `MATRIX_ROOM_IDS` | Comma-separated IDs of rooms where commands and Plex alerts are enabled. |
 | `MATRIX_ALLOWED_USERS` | Comma-separated full Matrix IDs allowed to issue commands. |
+| `MATRIX_ENCRYPTION_ENABLED` | Set to `true` to enable end-to-end encryption for configured rooms; defaults to `false`. |
 | `PLEX_URL` / `PLEX_TOKEN` | Plex Media Server URL and authentication token. |
 | `PLEX_POLL_SECONDS` | Poll interval, defaults to 60 seconds. |
 | `RADARR_URL` / `RADARR_API_KEY` | Radarr base URL and API key. |
@@ -30,7 +31,7 @@ On Windows PowerShell, create the private configuration with `Copy-Item .env.exa
 
 For a native install on the same machine as your media services, common URLs are `http://127.0.0.1:32400`, `http://127.0.0.1:7878`, and `http://127.0.0.1:8989`. Windows root folder examples are `F:/Movies` and `F:/TV`; verify the exact paths in your media managers.
 
-Use URLs reachable from the bot. In Docker, `localhost` refers to the bot container; use your server's hostname/IP or a shared Docker network. Preserve the `data` directory (Docker uses a named volume) to retain the Matrix sync position and Plex alert history. Run one bot process per data directory and Matrix account.
+Use URLs reachable from the bot. In Docker, `localhost` refers to the bot container; use your server's hostname/IP or a shared Docker network. Preserve the `data` directory (Docker uses a named volume) to retain the Matrix sync position, Plex alert history, and encryption keys. The encryption store is created at `data/matrix-crypto` when encryption is enabled. Back up and protect the full data directory: losing the crypto store can prevent the bot from decrypting room history, and the access token/device identity must remain stable across restarts. Run one bot process per data directory and Matrix account.
 
 All three services are required by this initial version. No credentials are included, and live services must be configured before the bot can run.
 
@@ -56,7 +57,7 @@ All three services are required by this initial version. No credentials are incl
 
 Search returns up to five numbered matches. Pick one to receive a preview with its cover and trailer link, then confirm within ten minutes. Search selections belong to the requester and room. Requests add monitored titles and start an automatic download search; acceptance does not guarantee a download. TV requests monitor all regular seasons and exclude specials. Existing titles are reported without changing monitoring or launching another search. Responses include an uploaded Matrix image when artwork is available. Missing trailer metadata produces a labeled YouTube search link; it is not a verified trailer URL. No TMDB key is required.
 
-Only configured rooms and users can issue commands. Invites are accepted only for configured room IDs from allowed users. Old timeline messages, edits, and self messages are ignored. The bot serializes command handling to prevent overlapping adds within this process. Encryption is not implemented; use a dedicated unencrypted room, and do not enable encryption after startup.
+Only configured rooms and users can issue commands. Invites are accepted only for configured room IDs from allowed users. Old timeline messages, edits, and self messages are ignored. The bot serializes command handling to prevent overlapping adds within this process. With encryption enabled, the SDK decrypts incoming room messages and encrypts bot replies and media automatically. The setting enables crypto support; it does not change a room's encryption state. Create or configure encrypted rooms in your Matrix client, then invite the bot. If a configured room is encrypted while the setting is off, startup fails with a configuration error.
 
 ## Troubleshooting
 
@@ -91,9 +92,11 @@ npm run check
 
 Tests cover confirmation gating, unauthorized users, repeated Matrix events, existing media, TV monitoring, first-poll behavior, per-room retry, HTML escaping, and trailer fallback. They use fake services and do not contact your library. After configuration, verify one movie and one TV request in a test room, repeat a request to check the duplicate response, then import an item into Plex and check its alert after a poll.
 
-## Dependency status
+## Matrix encryption
 
-The selected SDK currently depends on the deprecated `request` stack. At implementation, `npm audit` reported eight findings (six moderate and two critical, including transitive findings), with no automatic fix available. This remains an upstream dependency limitation; the project does not claim a clean security audit. Review updates before exposing the bot beyond a trusted room. No inbound HTTP port is required.
+End-to-end encryption is disabled by default. Set `MATRIX_ENCRYPTION_ENABLED=true` to enable the Element-maintained bot SDK's Rust-backed crypto support. Existing unencrypted rooms continue to work with this option enabled. The bot does not create rooms or turn encryption on for existing rooms; use a Matrix client to create an encrypted room and invite the bot.
+
+The crypto database is separate from `matrix.json` and lives under `DATA_DIR/matrix-crypto`. Keep the entire data directory persistent and backed up, and restrict access to it because it contains the bot's cryptographic state. Do not run multiple bot processes with the same account or data directory. If the crypto store is lost, encrypted history may no longer be decryptable by the bot.
 
 ## Suggested next features
 
@@ -106,7 +109,8 @@ The selected SDK currently depends on the deprecated `request` stack. At impleme
 ## References
 
 - [Matrix introductory guide](https://matrix.org/docs/older/matrix-bot-sdk-intro/) (marked outdated)
-- [Current SDK documentation](https://turt2live.github.io/matrix-bot-sdk/)
+- [Current SDK documentation](https://element-hq.github.io/matrix-bot-sdk/)
 - [Sonarr API](https://sonarr.tv/docs/api/)
 - [Radarr API](https://radarr.video/docs/api/)
 - [Plex API](https://developer.plex.tv/pms/)
+
