@@ -13,10 +13,11 @@
   "license": "ISC",
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "dependencies": {
     "dotenv": "^18.0.8",
-    "matrix-bot-sdk": "^0.8.0"
+    "@vector-im/matrix-bot-sdk": "0.10.1-element.0"
   }
 }
+
