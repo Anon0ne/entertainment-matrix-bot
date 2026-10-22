@@ -1,6 +1,6 @@
 {
   "name": "entertainment-matrix-bot",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Matrix entertainment bot for Plex, Sonarr, and Radarr",
   "main": "src/index.js",
   "scripts": {
@@ -20,4 +20,3 @@
     "@vector-im/matrix-bot-sdk": "0.10.1-element.0"
   }
 }
-
