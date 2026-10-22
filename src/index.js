@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import sdk from 'matrix-bot-sdk';
+import sdk from '@vector-im/matrix-bot-sdk';
 import { config } from './config.js';
 import { Arr, Plex } from './services.js';
 import { Bot } from './bot.js';
@@ -11,7 +11,11 @@ import { loadState, saveState, pollPlex } from './state.js';
 async function main() {
   const c = config();
   await mkdir(c.data, { recursive: true });
-  const client = new sdk.MatrixClient(c.homeserver, c.token, new sdk.SimpleFsStorageProvider(join(c.data, 'matrix.json')));
+  const storage = new sdk.SimpleFsStorageProvider(join(c.data, 'matrix.json'));
+  const crypto = c.encryption
+    ? new sdk.RustSdkCryptoStorageProvider(join(c.data, 'matrix-crypto'), sdk.RustSdkCryptoStoreType.Sqlite)
+    : undefined;
+  const client = new sdk.MatrixClient(c.homeserver, c.token, storage, crypto);
   const self = await client.getUserId();
   const plex = new Plex(c.plex);
   const imageLoader = async item => {
@@ -56,8 +60,10 @@ async function main() {
     try {
       await client.joinRoom(room);
       const state = await client.getRoomState(room);
-      if (state.some(x => x.type === 'm.room.encryption')) throw new Error('Encrypted room');
-    } catch { throw new Error('Cannot use configured room. Ensure the bot is invited and the room is unencrypted.'); }
+      const encrypted = state.some(x => x.type === 'm.room.encryption');
+      if (encrypted && !c.encryption) throw new Error('Encryption is disabled');
+      if (encrypted && !client.crypto?.isReady) throw new Error('Encryption could not be initialized');
+    } catch { throw new Error('Cannot use configured room. Ensure the bot is invited, and set MATRIX_ENCRYPTION_ENABLED=true for encrypted rooms.'); }
   }
   const path = join(c.data, 'plex.json');
   ready = true;
@@ -75,3 +81,4 @@ async function main() {
   process.once('SIGINT', stop); process.once('SIGTERM', stop);
 }
 main().catch(error => { console.error(error.message.startsWith('Missing ') || error.message.startsWith('Invalid ') || error.message.startsWith('Cannot use') ? error.message : 'Startup failed. Check credentials, connectivity, and persistent data.'); process.exit(1); });
+
